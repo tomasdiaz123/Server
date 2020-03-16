@@ -21,7 +21,8 @@ namespace Server
             Logout,     //Saída/desconectar
             Message,    //Envio de mensagem para todos os clientes
             List,       //Obter lista dos utilizadores
-            Null        //auxiliar
+            Null,        //auxiliar
+            Atacar
         }
         //Estrutura com informação de todos os clientes ligados ao servidor
         struct ClientInfo
@@ -35,7 +36,7 @@ namespace Server
 
         //Socket principal que aguarda conexões
         Socket serverSocket;
-
+        int cnt;
         byte[] byteData = new byte[1024];
         Data msgToSend = new Data();
         public Form1()
@@ -46,6 +47,7 @@ namespace Server
 
         private void btnStart_Click(object sender, EventArgs e)
         {
+            cnt = 0;
             try
             {
                 CheckForIllegalCrossThreadCalls = false;
@@ -78,8 +80,6 @@ namespace Server
         {
             try
             {
-                int cnt = 0;
-                byte[] message;
                 IPEndPoint ipeSender = new IPEndPoint(IPAddress.Any, 0);
                 EndPoint epSender = (EndPoint)ipeSender;
 
@@ -87,12 +87,37 @@ namespace Server
 
                 //Transformar o array de bytes recebido do utilizador num objecto de dados
                 Data msgReceived = new Data(byteData);
-                msgToSend.strMessage= "A1";
+                //Enviar o objecto em resposta aos pedidos dos clientes
+                Data msgToSend = new Data();
+
+                byte[] message;
                 message = msgToSend.ToByte();
+                if(msgReceived.cmdCommand == Command.Login)
+                {
+                    ClientInfo clientI = new ClientInfo();
+                    clientI.strName = msgReceived.strName;
+                    clientI.endpoint = epSender;
+                    clientList.Add(clientI);
+                }
+                if(msgReceived.cmdCommand == Command.Atacar)
+                {
+                    foreach(ClientInfo clientI in clientList)
+                    {
+                        if(clientI.strName != msgReceived.strName)
+                        {
+                            msgToSend.strMessage = msgReceived.strMessage;
+                            msgToSend.cmdCommand = msgReceived.cmdCommand;
+                            msgToSend.strName = clientI.strName;
+                            message = msgToSend.ToByte();
+                            //Enviar a posição ao client 2 depois clienmt 2 ve se acerta se ss message = Acertou!
+                            serverSocket.BeginSendTo(message, 0, message.Length, SocketFlags.None, clientI.endpoint,
+                              new AsyncCallback(OnSend), clientI.endpoint);
+                        }
+                    }
+                   
+                }
                 
-                    //Enviar mensagem a todos os clientes
-                    serverSocket.BeginSendTo(message, 0, message.Length, SocketFlags.None, epSender,
-                        new AsyncCallback(OnSend), epSender);
+              
 
                 //Se o utilizador saiu, não é necessário continuar a aguardar dados
                 if (msgReceived.cmdCommand != Command.Logout)
@@ -188,6 +213,11 @@ namespace Server
             public string strName;      //Nome do cliente no Chat
             public string strMessage;   //Messagem
             public Command cmdCommand;  //Tipo de comando (login, logout, send message, ...)
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
         }
     }
 }
